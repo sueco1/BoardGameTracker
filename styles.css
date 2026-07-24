@@ -90,12 +90,27 @@
 
 .gnt-podium { display: flex; align-items: flex-end; justify-content: center; gap: 14px; padding: 10px 0 0; }
 .gnt-podium-col { display: flex; flex-direction: column; align-items: center; width: 120px; }
-.gnt-podium-name { font-weight: 700; font-size: 13.5px; text-align: center; margin-bottom: 4px; }
+.gnt-podium-name { font-weight: 700; font-size: 13.5px; text-align: center; margin-bottom: 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .gnt-podium-pts { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-soft); margin-bottom: 8px; }
 .gnt-podium-bar { width: 100%; border-radius: 8px 8px 0 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 8px; font-family: 'Anton', sans-serif; font-size: 20px; }
 .gnt-podium-1 .gnt-podium-bar { height: 108px; background: linear-gradient(180deg, #E8C25E, var(--gold)); color: #4A3204; }
 .gnt-podium-2 .gnt-podium-bar { height: 78px; background: linear-gradient(180deg, #C7CCD2, var(--silver)); color: #3C4046; }
 .gnt-podium-3 .gnt-podium-bar { height: 58px; background: linear-gradient(180deg, #CB9865, var(--bronze)); color: #4A2A0C; }
+
+.gnt-avatar {
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-family: 'Karla', sans-serif; flex-shrink: 0;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+}
+.gnt-chip { display: inline-flex; align-items: center; gap: 7px; }
+
+.gnt-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.gnt-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.gnt-swatch.selected { box-shadow: 0 0 0 2px var(--ink); }
+
+.gnt-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.gnt-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.gnt-legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
 .gnt-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .gnt-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }

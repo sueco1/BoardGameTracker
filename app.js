@@ -50,6 +50,53 @@ function periodInfo(dateStr, granularity) {
   return { key: `${isoYear}-B${String(biweek).padStart(2, "0")}`, label: `Weeks ${startWeek}\u2013${startWeek + 1}, ${isoYear}` };
 }
 
+const PALETTE = ["#C1533D", "#2F6F5E", "#2E6E9E", "#B8860B", "#7B4FA3", "#C4638A", "#4A8B7C", "#A3703D"];
+
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function Avatar({ name, color, size = 28 }) {
+  return (
+    <div
+      className="gnt-avatar"
+      style={{ width: size, height: size, background: color || "#8A8F84", fontSize: size * 0.4 }}
+    >
+      {getInitials(name || "?")}
+    </div>
+  );
+}
+
+function PlayerChip({ player }) {
+  if (!player) return <span>\u2014</span>;
+  return (
+    <span className="gnt-chip">
+      <Avatar name={player.name} color={player.color} size={20} />
+      {player.name}
+    </span>
+  );
+}
+
+function ColorSwatchPicker({ value, onChange }) {
+  return (
+    <div className="gnt-swatches">
+      {PALETTE.map((c) => (
+        <button
+          key={c}
+          type="button"
+          className={`gnt-swatch${value === c ? " selected" : ""}`}
+          style={{ background: c }}
+          onClick={() => onChange(c)}
+          aria-label={`Choose color ${c}`}
+        />
+      ))}
+    </div>
+  );
+}
+
 const STORAGE_PREFIX = "gnt:";
 
 function loadKey(key, fallback) {
@@ -85,8 +132,15 @@ function useAppData() {
         loadKey("players", []),
         loadKey("logs", []),
       ]);
+      let changed = false;
+      const migratedPlayers = p.map((pl, i) => {
+        if (pl.color) return pl;
+        changed = true;
+        return { ...pl, color: PALETTE[i % PALETTE.length] };
+      });
+      if (changed) saveKey("players", migratedPlayers);
       setGames(g);
-      setPlayers(p);
+      setPlayers(migratedPlayers);
       setLogs(l);
       setLoading(false);
     })();
@@ -164,11 +218,31 @@ function GameNightTracker() {
     return "";
   }
 
-  async function addPlayer(name) {
+  async function updateGame(id, name) {
+    const trimmed = name.trim();
+    if (!trimmed) return "Enter a game name.";
+    if (games.some((g) => g.id !== id && g.name.toLowerCase() === trimmed.toLowerCase())) return "That game already exists.";
+    const next = games.map((g) => (g.id === id ? { ...g, name: trimmed } : g));
+    setGames(next);
+    await saveKey("games", next);
+    return "";
+  }
+
+  async function addPlayer(name, color) {
     const trimmed = name.trim();
     if (!trimmed) return "Enter a player name.";
     if (players.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) return "That player already exists.";
-    const next = [...players, { id: uid(), name: trimmed }];
+    const next = [...players, { id: uid(), name: trimmed, color: color || PALETTE[players.length % PALETTE.length] }];
+    setPlayers(next);
+    await saveKey("players", next);
+    return "";
+  }
+
+  async function updatePlayer(id, updates) {
+    const trimmed = (updates.name || "").trim();
+    if (!trimmed) return "Enter a player name.";
+    if (players.some((p) => p.id !== id && p.name.toLowerCase() === trimmed.toLowerCase())) return "That player already exists.";
+    const next = players.map((p) => (p.id === id ? { ...p, name: trimmed, color: updates.color || p.color } : p));
     setPlayers(next);
     await saveKey("players", next);
     return "";
@@ -256,9 +330,9 @@ function GameNightTracker() {
         )}
         {tab === "results" && <ResultsTab logs={logs} players={players} playerById={playerById} />}
         {tab === "totals" && <TotalsTab logs={logs} players={players} games={games} playerById={playerById} />}
-        {tab === "library" && <LibraryTab games={games} playCount={playCount} addGame={addGame} deleteGame={deleteGame} />}
+        {tab === "library" && <LibraryTab games={games} playCount={playCount} addGame={addGame} updateGame={updateGame} deleteGame={deleteGame} />}
         {tab === "players" && (
-          <PlayersTab players={players} appearances={playerAppearances} addPlayer={addPlayer} deletePlayer={deletePlayer} />
+          <PlayersTab players={players} appearances={playerAppearances} addPlayer={addPlayer} updatePlayer={updatePlayer} deletePlayer={deletePlayer} />
         )}
       </div>
     </div>
@@ -375,9 +449,9 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
                   <tr key={l.id}>
                     <td className="gnt-mono">{formatDateHuman(l.date)}</td>
                     <td>{gameById[l.gameId]?.name || <span className="gnt-dim">Deleted game</span>}</td>
-                    <td>{playerById[l.first]?.name || "\u2014"}</td>
-                    <td>{playerById[l.second]?.name || "\u2014"}</td>
-                    <td>{playerById[l.third]?.name || "\u2014"}</td>
+                    <td>{playerById[l.first] ? <PlayerChip player={playerById[l.first]} /> : "\u2014"}</td>
+                    <td>{playerById[l.second] ? <PlayerChip player={playerById[l.second]} /> : "\u2014"}</td>
+                    <td>{playerById[l.third] ? <PlayerChip player={playerById[l.third]} /> : "\u2014"}</td>
                     <td className="gnt-dim">{l.notes || "\u2014"}</td>
                     <td>
                       <div className="gnt-row-actions">
@@ -391,6 +465,93 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Trend chart ---------- */
+
+function TrendChart({ logs, players }) {
+  const series = useMemo(() => {
+    if (logs.length === 0 || players.length === 0) return null;
+    const sorted = [...logs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const map = {};
+    const order = [];
+    sorted.forEach((l) => {
+      const { key, label } = periodInfo(l.date, "month");
+      if (!map[key]) { map[key] = { key, label, deltas: {} }; order.push(key); }
+      if (l.first) map[key].deltas[l.first] = (map[key].deltas[l.first] || 0) + PLACE_POINTS.first;
+      if (l.second) map[key].deltas[l.second] = (map[key].deltas[l.second] || 0) + PLACE_POINTS.second;
+      if (l.third) map[key].deltas[l.third] = (map[key].deltas[l.third] || 0) + PLACE_POINTS.third;
+    });
+    const running = {};
+    players.forEach((p) => (running[p.id] = 0));
+    return order.map((k) => {
+      const per = map[k];
+      const point = { key: per.key, label: per.label, values: {} };
+      players.forEach((p) => {
+        running[p.id] += per.deltas[p.id] || 0;
+        point.values[p.id] = running[p.id];
+      });
+      return point;
+    });
+  }, [logs, players]);
+
+  if (!series || series.length < 2) {
+    return <div className="gnt-empty">Log games across a couple of different months to see a trend line here.</div>;
+  }
+
+  const width = 640, height = 260;
+  const padL = 32, padR = 12, padT = 12, padB = 30;
+  const innerW = width - padL - padR;
+  const innerH = height - padT - padB;
+  const maxVal = Math.max(1, ...series.flatMap((d) => players.map((p) => d.values[p.id] || 0)));
+  const stepX = innerW / (series.length - 1);
+  const xAt = (i) => padL + i * stepX;
+  const yAt = (v) => padT + innerH - (v / maxVal) * innerH;
+  const gridLines = 4;
+  const labelEvery = Math.max(1, Math.ceil(series.length / 6));
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        {Array.from({ length: gridLines + 1 }).map((_, i) => {
+          const y = padT + (innerH / gridLines) * i;
+          const val = Math.round(maxVal - (maxVal / gridLines) * i);
+          return (
+            <g key={i}>
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#E4DCC4" strokeWidth="1" />
+              <text x={padL - 6} y={y + 3} fontSize="9" textAnchor="end" fill="#8B8F7E">{val}</text>
+            </g>
+          );
+        })}
+        {series.map((d, i) =>
+          i % labelEvery === 0 || i === series.length - 1 ? (
+            <text key={d.key} x={xAt(i)} y={height - 8} fontSize="9" textAnchor="middle" fill="#8B8F7E">
+              {d.label.split(" ")[0].slice(0, 3)}
+            </text>
+          ) : null
+        )}
+        {players.map((p) => {
+          const points = series.map((d, i) => `${xAt(i)},${yAt(d.values[p.id] || 0)}`).join(" ");
+          return (
+            <g key={p.id}>
+              <polyline points={points} fill="none" stroke={p.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+              {series.map((d, i) => (
+                <circle key={i} cx={xAt(i)} cy={yAt(d.values[p.id] || 0)} r="2.5" fill={p.color} />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="gnt-legend">
+        {players.map((p) => (
+          <div key={p.id} className="gnt-legend-item">
+            <span className="gnt-legend-dot" style={{ background: p.color }} />
+            {p.name}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -425,7 +586,8 @@ function ResultsTab({ logs, players, playerById }) {
   ];
 
   return (
-    <div className="gnt-card">
+    <div>
+      <div className="gnt-card">
       <div className="gnt-card-title">Wins Over Time</div>
       <div style={{ marginBottom: 16 }}>
         <div className="gnt-seg">
@@ -468,6 +630,13 @@ function ResultsTab({ logs, players, playerById }) {
         </div>
       )}
       <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Win counts reflect 1st-place finishes only.</div>
+      </div>
+
+      <div className="gnt-card">
+        <div className="gnt-card-title">Points Trend</div>
+        <div className="gnt-dim" style={{ fontSize: 12.5, marginBottom: 14 }}>Cumulative points over time, month by month.</div>
+        <TrendChart logs={logs} players={players} />
+      </div>
     </div>
   );
 }
@@ -502,6 +671,41 @@ function TotalsTab({ logs, players, games, playerById }) {
     return map;
   }, [games, players, logs, placeFilter]);
 
+  const winRateByGame = useMemo(() => {
+    const map = {};
+    games.forEach((g) => {
+      map[g.id] = {};
+      players.forEach((p) => {
+        const played = logs.filter((l) => l.gameId === g.id && (l.first === p.id || l.second === p.id || l.third === p.id)).length;
+        const wins = logs.filter((l) => l.gameId === g.id && l.first === p.id).length;
+        map[g.id][p.id] = played > 0 ? { played, wins, rate: Math.round((wins / played) * 100) } : null;
+      });
+    });
+    return map;
+  }, [games, players, logs]);
+
+  const streaks = useMemo(() => {
+    const result = {};
+    players.forEach((p) => {
+      const playerLogs = logs
+        .filter((l) => l.first === p.id || l.second === p.id || l.third === p.id)
+        .slice()
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+      let best = 0, run = 0;
+      playerLogs.forEach((l) => {
+        if (l.first === p.id) { run += 1; best = Math.max(best, run); }
+        else run = 0;
+      });
+      let current = 0;
+      for (let i = playerLogs.length - 1; i >= 0; i--) {
+        if (playerLogs[i].first === p.id) current += 1;
+        else break;
+      }
+      result[p.id] = { current, best };
+    });
+    return result;
+  }, [players, logs]);
+
   const podium = standings.filter((s) => s.points > 0).slice(0, 3);
   const order = podium.length === 3 ? [podium[1], podium[0], podium[2]] : podium;
   const podiumRank = (p) => podium.indexOf(p) + 1;
@@ -522,7 +726,10 @@ function TotalsTab({ logs, players, games, playerById }) {
           <div className="gnt-podium">
             {order.map((p) => (
               <div key={p.id} className={`gnt-podium-col gnt-podium-${podiumRank(p)}`}>
-                <div className="gnt-podium-name">{p.name}</div>
+                <div className="gnt-podium-name">
+                  <Avatar name={p.name} color={p.color} size={34} />
+                  <div>{p.name}</div>
+                </div>
                 <div className="gnt-podium-pts">{p.points} pts</div>
                 <div className="gnt-podium-bar">{podiumRank(p)}</div>
               </div>
@@ -541,7 +748,7 @@ function TotalsTab({ logs, players, games, playerById }) {
                 {standings.map((s, i) => (
                   <tr key={s.id}>
                     <td className="gnt-num">{i + 1}</td>
-                    <td style={{ fontWeight: 700 }}>{s.name}</td>
+                    <td style={{ fontWeight: 700 }}><PlayerChip player={s} /></td>
                     <td className="gnt-num">{s.points}</td>
                     <td className="gnt-num"><span className="gnt-pill gnt-pill-gold">{s.first}</span></td>
                     <td className="gnt-num"><span className="gnt-pill gnt-pill-silver">{s.second}</span></td>
@@ -553,6 +760,71 @@ function TotalsTab({ logs, players, games, playerById }) {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="gnt-card">
+        <div className="gnt-card-title">Win Streaks</div>
+        {players.length === 0 ? (
+          <div className="gnt-empty">Add players to track streaks.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="gnt-table">
+              <thead>
+                <tr><th>Player</th><th>Current streak</th><th>Best streak</th></tr>
+              </thead>
+              <tbody>
+                {[...players]
+                  .sort((a, b) => streaks[b.id].current - streaks[a.id].current || streaks[b.id].best - streaks[a.id].best)
+                  .map((p) => (
+                    <tr key={p.id}>
+                      <td><PlayerChip player={p} /></td>
+                      <td className="gnt-num">{streaks[p.id].current > 0 ? `\uD83D\uDD25 ${streaks[p.id].current}` : "\u2014"}</td>
+                      <td className="gnt-num gnt-dim">{streaks[p.id].best}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>A streak counts consecutive 1st-place finishes across all games.</div>
+      </div>
+
+      <div className="gnt-card">
+        <div className="gnt-card-title">Win Rate by Game</div>
+        {games.length === 0 || players.length === 0 ? (
+          <div className="gnt-empty">Add games and players to see win rates.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="gnt-table">
+              <thead>
+                <tr>
+                  <th>Game</th>
+                  {players.map((p) => <th key={p.id}>{p.name}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {games.map((g) => (
+                  <tr key={g.id}>
+                    <td>{g.name}</td>
+                    {players.map((p) => {
+                      const cell = winRateByGame[g.id][p.id];
+                      return (
+                        <td key={p.id} className="gnt-num">
+                          {cell ? (
+                            <>
+                              {cell.rate}%<span className="gnt-dim" style={{ fontWeight: 400, fontSize: 11 }}> ({cell.wins}/{cell.played})</span>
+                            </>
+                          ) : "\u2014"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Win rate = 1st-place finishes \u00f7 times that player has played the game.</div>
       </div>
 
       <div className="gnt-card">
@@ -595,9 +867,11 @@ function TotalsTab({ logs, players, games, playerById }) {
 
 /* ---------- Library tab ---------- */
 
-function LibraryTab({ games, playCount, addGame, deleteGame }) {
+function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
 
   async function handleAdd(e) {
     e.preventDefault();
@@ -609,6 +883,18 @@ function LibraryTab({ games, playCount, addGame, deleteGame }) {
   async function handleDelete(id) {
     const msg = await deleteGame(id);
     if (msg) setError(msg);
+  }
+
+  function startEdit(g) {
+    setEditingId(g.id);
+    setEditName(g.name);
+    setError("");
+  }
+
+  async function handleSaveEdit(id) {
+    const msg = await updateGame(id, editName);
+    if (msg) setError(msg);
+    else setEditingId(null);
   }
 
   return (
@@ -623,15 +909,28 @@ function LibraryTab({ games, playCount, addGame, deleteGame }) {
         <div className="gnt-empty">No games yet. Add your first one above.</div>
       ) : (
         <div>
-          {games.map((g) => (
-            <div key={g.id} className="gnt-list-item">
-              <div>
-                <span style={{ fontWeight: 700 }}>{g.name}</span>{" "}
-                <span className="gnt-dim" style={{ fontSize: 12.5 }}>({playCount(g.id)} time{playCount(g.id) === 1 ? "" : "s"} played)</span>
+          {games.map((g) =>
+            editingId === g.id ? (
+              <div key={g.id} className="gnt-list-item">
+                <div className="gnt-row-actions" style={{ flex: 1, alignItems: "center" }}>
+                  <input className="gnt-input" value={editName} onChange={(e) => setEditName(e.target.value)} style={{ maxWidth: 240 }} autoFocus />
+                  <button className="gnt-btn gnt-btn-sm gnt-btn-primary" onClick={() => handleSaveEdit(g.id)}>Save</button>
+                  <button className="gnt-btn gnt-btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
+                </div>
               </div>
-              <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(g.id)}>Remove</button>
-            </div>
-          ))}
+            ) : (
+              <div key={g.id} className="gnt-list-item">
+                <div>
+                  <span style={{ fontWeight: 700 }}>{g.name}</span>{" "}
+                  <span className="gnt-dim" style={{ fontSize: 12.5 }}>({playCount(g.id)} time{playCount(g.id) === 1 ? "" : "s"} played)</span>
+                </div>
+                <div className="gnt-row-actions">
+                  <button className="gnt-btn gnt-btn-sm" onClick={() => startEdit(g)}>Edit</button>
+                  <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(g.id)}>Remove</button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
     </div>
@@ -640,13 +939,22 @@ function LibraryTab({ games, playCount, addGame, deleteGame }) {
 
 /* ---------- Players tab ---------- */
 
-function PlayersTab({ players, appearances, addPlayer, deletePlayer }) {
+function PlayersTab({ players, appearances, addPlayer, updatePlayer, deletePlayer }) {
   const [name, setName] = useState("");
+  const [color, setColor] = useState(PALETTE[0]);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("");
+
+  useEffect(() => {
+    const used = players.map((p) => p.color);
+    setColor(PALETTE.find((c) => !used.includes(c)) || PALETTE[players.length % PALETTE.length]);
+  }, [players.length]);
 
   async function handleAdd(e) {
     e.preventDefault();
-    const msg = await addPlayer(name);
+    const msg = await addPlayer(name, color);
     if (msg) setError(msg);
     else { setName(""); setError(""); }
   }
@@ -656,27 +964,59 @@ function PlayersTab({ players, appearances, addPlayer, deletePlayer }) {
     if (msg) setError(msg);
   }
 
+  function startEdit(p) {
+    setEditingId(p.id);
+    setEditName(p.name);
+    setEditColor(p.color);
+    setError("");
+  }
+
+  async function handleSaveEdit(id) {
+    const msg = await updatePlayer(id, { name: editName, color: editColor });
+    if (msg) setError(msg);
+    else setEditingId(null);
+  }
+
   return (
     <div className="gnt-card">
       <div className="gnt-card-title">Players</div>
-      <form onSubmit={handleAdd} className="gnt-row-actions" style={{ marginBottom: 16, alignItems: "flex-start" }}>
-        <input className="gnt-input" placeholder="Add a player, e.g. Mom" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} />
-        <button type="submit" className="gnt-btn gnt-btn-primary">Add</button>
+      <form onSubmit={handleAdd} style={{ marginBottom: 16 }}>
+        <div className="gnt-row-actions" style={{ alignItems: "flex-start", marginBottom: 10 }}>
+          <input className="gnt-input" placeholder="Add a player, e.g. Mom" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} />
+          <button type="submit" className="gnt-btn gnt-btn-primary">Add</button>
+        </div>
+        <label className="gnt-label">Color</label>
+        <ColorSwatchPicker value={color} onChange={setColor} />
       </form>
       {error && <div className="gnt-error" style={{ marginBottom: 12 }}>{error}</div>}
       {players.length === 0 ? (
         <div className="gnt-empty">No players yet. Add your first one above.</div>
       ) : (
         <div>
-          {players.map((p) => (
-            <div key={p.id} className="gnt-list-item">
-              <div>
-                <span style={{ fontWeight: 700 }}>{p.name}</span>{" "}
-                <span className="gnt-dim" style={{ fontSize: 12.5 }}>({appearances(p.id)} game{appearances(p.id) === 1 ? "" : "s"} played)</span>
+          {players.map((p) =>
+            editingId === p.id ? (
+              <div key={p.id} className="gnt-list-item" style={{ display: "block" }}>
+                <div className="gnt-row-actions" style={{ alignItems: "center", marginBottom: 8 }}>
+                  <input className="gnt-input" value={editName} onChange={(e) => setEditName(e.target.value)} style={{ maxWidth: 220 }} autoFocus />
+                  <button className="gnt-btn gnt-btn-sm gnt-btn-primary" onClick={() => handleSaveEdit(p.id)}>Save</button>
+                  <button className="gnt-btn gnt-btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
+                </div>
+                <ColorSwatchPicker value={editColor} onChange={setEditColor} />
               </div>
-              <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(p.id)}>Remove</button>
-            </div>
-          ))}
+            ) : (
+              <div key={p.id} className="gnt-list-item">
+                <div className="gnt-row-actions" style={{ alignItems: "center" }}>
+                  <Avatar name={p.name} color={p.color} size={28} />
+                  <span style={{ fontWeight: 700 }}>{p.name}</span>
+                  <span className="gnt-dim" style={{ fontSize: 12.5 }}>({appearances(p.id)} game{appearances(p.id) === 1 ? "" : "s"} played)</span>
+                </div>
+                <div className="gnt-row-actions">
+                  <button className="gnt-btn gnt-btn-sm" onClick={() => startEdit(p)}>Edit</button>
+                  <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(p.id)}>Remove</button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
     </div>
