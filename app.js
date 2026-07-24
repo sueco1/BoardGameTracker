@@ -1,5 +1,5 @@
 // Destructure hooks from the globally available React object (provided by CDN)
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 /* ---------- constants & helpers ---------- */
 
@@ -50,18 +50,21 @@ function periodInfo(dateStr, granularity) {
   return { key: `${isoYear}-B${String(biweek).padStart(2, "0")}`, label: `Weeks ${startWeek}\u2013${startWeek + 1}, ${isoYear}` };
 }
 
-async function loadKey(key, fallback) {
+const STORAGE_PREFIX = "gnt:";
+
+function loadKey(key, fallback) {
   try {
-    const res = await window.storage.get(key, false);
-    return res && res.value ? JSON.parse(res.value) : fallback;
-  } catch {
+    const raw = localStorage.getItem(STORAGE_PREFIX + key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    console.error("storage load failed", key, e);
     return fallback;
   }
 }
 
-async function saveKey(key, value) {
+function saveKey(key, value) {
   try {
-    await window.storage.set(key, JSON.stringify(value), false);
+    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
   } catch (e) {
     console.error("storage save failed", key, e);
   }
@@ -97,6 +100,44 @@ function useAppData() {
 function GameNightTracker() {
   const { loading, games, setGames, players, setPlayers, logs, setLogs } = useAppData();
   const [tab, setTab] = useState("log");
+  const fileInputRef = useRef(null);
+
+  function exportData() {
+    const payload = { exportedAt: new Date().toISOString(), games, players, logs };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `game-night-backup-${todayISO()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportChange(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data.games) || !Array.isArray(data.players) || !Array.isArray(data.logs)) {
+        alert("This file doesn't look like a Game Night backup.");
+        return;
+      }
+      const ok = window.confirm("Importing will replace all current games, players, and entries on this device. Continue?");
+      if (!ok) return;
+      setGames(data.games);
+      setPlayers(data.players);
+      setLogs(data.logs);
+      saveKey("games", data.games);
+      saveKey("players", data.players);
+      saveKey("logs", data.logs);
+    } catch (err) {
+      alert("Couldn't read that file. Make sure it's a Game Night backup JSON file.");
+    }
+  }
 
   const gameById = useMemo(() => Object.fromEntries(games.map((g) => [g.id, g])), [games]);
   const playerById = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p])), [players]);
@@ -178,8 +219,21 @@ function GameNightTracker() {
   return (
     <div className="gnt-app">
       <div className="gnt-header">
-        <div className="gnt-title gnt-display">Game Night</div>
-        <div className="gnt-subtitle">The family scoreboard</div>
+        <div className="gnt-header-row">
+          <div>
+            <div className="gnt-title gnt-display">Game Night</div>
+            <div className="gnt-subtitle">The family scoreboard</div>
+          </div>
+          <div className="gnt-databar">
+            <button className="gnt-btn gnt-btn-sm gnt-btn-ghost" onClick={exportData} title="Download a backup file of all your data">
+              Export backup
+            </button>
+            <button className="gnt-btn gnt-btn-sm gnt-btn-ghost" onClick={() => fileInputRef.current.click()} title="Restore data from a backup file">
+              Import backup
+            </button>
+            <input ref={fileInputRef} type="file" accept="application/json" style={{ display: "none" }} onChange={handleImportChange} />
+          </div>
+        </div>
       </div>
       <div className="gnt-tabs">
         {tabs.map((t) => (

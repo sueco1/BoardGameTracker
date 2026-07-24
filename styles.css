@@ -32,6 +32,10 @@
 }
 .gnt-title { font-size: 28px; line-height: 1; color: var(--parchment); }
 .gnt-subtitle { font-family: 'Karla', sans-serif; font-style: italic; color: #C9CFC3; font-size: 13px; margin-top: 4px; }
+.gnt-header-row { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.gnt-databar { display: flex; gap: 8px; flex-wrap: wrap; }
+.gnt-btn-ghost { background: transparent; border: 1px solid rgba(246,241,228,0.35); color: var(--parchment); }
+.gnt-btn-ghost:hover { background: rgba(246,241,228,0.12); }
 
 .gnt-tabs { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 24px; background: var(--felt); }
 .gnt-tab {
