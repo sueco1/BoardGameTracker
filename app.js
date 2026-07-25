@@ -155,6 +155,22 @@ function GameNightTracker() {
   const { loading, games, setGames, players, setPlayers, logs, setLogs } = useAppData();
   const [tab, setTab] = useState("log");
   const fileInputRef = useRef(null);
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("gnt:theme");
+      if (saved === "light" || saved === "dark") return saved;
+    } catch {}
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("gnt:theme", theme); } catch {}
+    document.body.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  }
 
   function exportData() {
     const payload = { exportedAt: new Date().toISOString(), games, players, logs };
@@ -276,7 +292,7 @@ function GameNightTracker() {
 
   if (loading) {
     return (
-      <div className="gnt-app" style={{ padding: 40, textAlign: "center" }}>
+      <div className="gnt-app" data-theme={theme} style={{ padding: 40, textAlign: "center" }}>
         <div className="gnt-dim">Loading your scoreboard\u2026</div>
       </div>
     );
@@ -291,7 +307,7 @@ function GameNightTracker() {
   ];
 
   return (
-    <div className="gnt-app">
+    <div className="gnt-app" data-theme={theme}>
       <div className="gnt-header">
         <div className="gnt-header-row">
           <div>
@@ -299,6 +315,9 @@ function GameNightTracker() {
             <div className="gnt-subtitle">The family scoreboard</div>
           </div>
           <div className="gnt-databar">
+            <button className="gnt-btn gnt-btn-sm gnt-btn-ghost" onClick={toggleTheme} title="Switch between light and dark mode">
+              {theme === "dark" ? "\u2600\uFE0F Light" : "\uD83C\uDF19 Dark"}
+            </button>
             <button className="gnt-btn gnt-btn-sm gnt-btn-ghost" onClick={exportData} title="Download a backup file of all your data">
               Export backup
             </button>
@@ -521,14 +540,14 @@ function TrendChart({ logs, players }) {
           const val = Math.round(maxVal - (maxVal / gridLines) * i);
           return (
             <g key={i}>
-              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#E4DCC4" strokeWidth="1" />
-              <text x={padL - 6} y={y + 3} fontSize="9" textAnchor="end" fill="#8B8F7E">{val}</text>
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="var(--line)" strokeWidth="1" />
+              <text x={padL - 6} y={y + 3} fontSize="9" textAnchor="end" fill="var(--ink-soft)">{val}</text>
             </g>
           );
         })}
         {series.map((d, i) =>
           i % labelEvery === 0 || i === series.length - 1 ? (
-            <text key={d.key} x={xAt(i)} y={height - 8} fontSize="9" textAnchor="middle" fill="#8B8F7E">
+            <text key={d.key} x={xAt(i)} y={height - 8} fontSize="9" textAnchor="middle" fill="var(--ink-soft)">
               {d.label.split(" ")[0].slice(0, 3)}
             </text>
           ) : null
