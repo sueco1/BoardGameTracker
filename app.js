@@ -70,12 +70,15 @@ function Avatar({ name, color, size = 28 }) {
   );
 }
 
-function PlayerChip({ player }) {
+function PlayerChip({ player, score }) {
   if (!player) return <span>\u2014</span>;
   return (
     <span className="gnt-chip">
       <Avatar name={player.name} color={player.color} size={20} />
       {player.name}
+      {score !== undefined && score !== null && (
+        <span className="gnt-dim gnt-num" style={{ fontSize: 11.5 }}>({score})</span>
+      )}
     </span>
   );
 }
@@ -220,7 +223,7 @@ function GameNightTracker() {
     const trimmed = name.trim();
     if (!trimmed) return "Enter a game name.";
     if (games.some((g) => g.name.toLowerCase() === trimmed.toLowerCase())) return "That game is already in the library.";
-    const next = [...games, { id: uid(), name: trimmed }];
+    const next = [...games, { id: uid(), name: trimmed, rules: "" }];
     setGames(next);
     await saveKey("games", next);
     return "";
@@ -234,11 +237,19 @@ function GameNightTracker() {
     return "";
   }
 
-  async function updateGame(id, name) {
-    const trimmed = name.trim();
-    if (!trimmed) return "Enter a game name.";
-    if (games.some((g) => g.id !== id && g.name.toLowerCase() === trimmed.toLowerCase())) return "That game already exists.";
-    const next = games.map((g) => (g.id === id ? { ...g, name: trimmed } : g));
+  async function updateGame(id, updates) {
+    if (updates.name !== undefined) {
+      const trimmed = updates.name.trim();
+      if (!trimmed) return "Enter a game name.";
+      if (games.some((g) => g.id !== id && g.name.toLowerCase() === trimmed.toLowerCase())) return "That game already exists.";
+    }
+    const next = games.map((g) => {
+      if (g.id !== id) return g;
+      const merged = { ...g };
+      if (updates.name !== undefined) merged.name = updates.name.trim();
+      if (updates.rules !== undefined) merged.rules = updates.rules;
+      return merged;
+    });
     setGames(next);
     await saveKey("games", next);
     return "";
@@ -348,7 +359,7 @@ function GameNightTracker() {
           />
         )}
         {tab === "results" && <ResultsTab logs={logs} players={players} playerById={playerById} />}
-        {tab === "totals" && <TotalsTab logs={logs} players={players} games={games} playerById={playerById} />}
+        {tab === "totals" && <TotalsTab logs={logs} players={players} games={games} playerById={playerById} gameById={gameById} />}
         {tab === "library" && <LibraryTab games={games} playCount={playCount} addGame={addGame} updateGame={updateGame} deleteGame={deleteGame} />}
         {tab === "players" && (
           <PlayersTab players={players} appearances={playerAppearances} addPlayer={addPlayer} updatePlayer={updatePlayer} deletePlayer={deletePlayer} />
@@ -361,7 +372,7 @@ function GameNightTracker() {
 /* ---------- Log tab ---------- */
 
 function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog }) {
-  const blank = { id: null, date: todayISO(), gameId: "", first: "", second: "", third: "", notes: "" };
+  const blank = { id: null, date: todayISO(), gameId: "", first: "", second: "", third: "", firstScore: "", secondScore: "", thirdScore: "", notes: "" };
   const [form, setForm] = useState(blank);
   const [error, setError] = useState("");
 
@@ -377,18 +388,37 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
     setError("");
   }
 
+  function toNumberOrNull(v) {
+    if (v === "" || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.date) return setError("Choose a date.");
     if (!form.gameId) return setError("Choose a game.");
     if (!form.first || !form.second || !form.third) return setError("Choose all three places.");
     if (new Set([form.first, form.second, form.third]).size < 3) return setError("Each place needs a different player.");
-    await saveLog({ ...form });
+    for (const key of ["firstScore", "secondScore", "thirdScore"]) {
+      if (form[key] !== "" && Number.isNaN(Number(form[key]))) return setError("Scores must be numbers.");
+    }
+    await saveLog({
+      ...form,
+      firstScore: toNumberOrNull(form.firstScore),
+      secondScore: toNumberOrNull(form.secondScore),
+      thirdScore: toNumberOrNull(form.thirdScore),
+    });
     setForm(blank);
   }
 
   function startEdit(entry) {
-    setForm({ ...entry });
+    setForm({
+      ...entry,
+      firstScore: entry.firstScore ?? "",
+      secondScore: entry.secondScore ?? "",
+      thirdScore: entry.thirdScore ?? "",
+    });
     setError("");
   }
 
@@ -427,6 +457,14 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
+                  <input
+                    type="number"
+                    className="gnt-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="Score (optional)"
+                    value={form[`${slot}Score`]}
+                    onChange={(e) => update(`${slot}Score`, e.target.value)}
+                  />
                 </div>
               ))}
             </div>
@@ -468,9 +506,9 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
                   <tr key={l.id}>
                     <td className="gnt-mono">{formatDateHuman(l.date)}</td>
                     <td>{gameById[l.gameId]?.name || <span className="gnt-dim">Deleted game</span>}</td>
-                    <td>{playerById[l.first] ? <PlayerChip player={playerById[l.first]} /> : "\u2014"}</td>
-                    <td>{playerById[l.second] ? <PlayerChip player={playerById[l.second]} /> : "\u2014"}</td>
-                    <td>{playerById[l.third] ? <PlayerChip player={playerById[l.third]} /> : "\u2014"}</td>
+                    <td>{playerById[l.first] ? <PlayerChip player={playerById[l.first]} score={l.firstScore} /> : "\u2014"}</td>
+                    <td>{playerById[l.second] ? <PlayerChip player={playerById[l.second]} score={l.secondScore} /> : "\u2014"}</td>
+                    <td>{playerById[l.third] ? <PlayerChip player={playerById[l.third]} score={l.thirdScore} /> : "\u2014"}</td>
                     <td className="gnt-dim">{l.notes || "\u2014"}</td>
                     <td>
                       <div className="gnt-row-actions">
@@ -662,8 +700,9 @@ function ResultsTab({ logs, players, playerById }) {
 
 /* ---------- Totals tab ---------- */
 
-function TotalsTab({ logs, players, games, playerById }) {
+function TotalsTab({ logs, players, games, playerById, gameById }) {
   const [placeFilter, setPlaceFilter] = useState("first");
+  const [scoreSort, setScoreSort] = useState("desc");
 
   const standings = useMemo(() => {
     return players
@@ -678,6 +717,51 @@ function TotalsTab({ logs, players, games, playerById }) {
       })
       .sort((a, b) => b.points - a.points);
   }, [players, logs]);
+
+  const SLOT_SCORE_KEYS = [["first", "firstScore"], ["second", "secondScore"], ["third", "thirdScore"]];
+
+  const scoreStats = useMemo(() => {
+    const perPlayer = {};
+    const perGamePlayer = {};
+    players.forEach((p) => { perPlayer[p.id] = { total: 0, count: 0 }; });
+    games.forEach((g) => {
+      perGamePlayer[g.id] = {};
+      players.forEach((p) => { perGamePlayer[g.id][p.id] = { total: 0, count: 0 }; });
+    });
+    logs.forEach((l) => {
+      SLOT_SCORE_KEYS.forEach(([slot, scoreKey]) => {
+        const pid = l[slot];
+        const score = l[scoreKey];
+        if (pid && typeof score === "number" && !Number.isNaN(score)) {
+          if (perPlayer[pid]) { perPlayer[pid].total += score; perPlayer[pid].count += 1; }
+          if (perGamePlayer[l.gameId] && perGamePlayer[l.gameId][pid]) {
+            perGamePlayer[l.gameId][pid].total += score;
+            perGamePlayer[l.gameId][pid].count += 1;
+          }
+        }
+      });
+    });
+    return { perPlayer, perGamePlayer };
+  }, [players, games, logs]);
+
+  const scoreRecords = useMemo(() => {
+    const records = [];
+    logs.forEach((l) => {
+      SLOT_SCORE_KEYS.forEach(([slot, scoreKey]) => {
+        const pid = l[slot];
+        const score = l[scoreKey];
+        if (pid && typeof score === "number" && !Number.isNaN(score)) {
+          records.push({ id: `${l.id}-${slot}`, date: l.date, gameId: l.gameId, playerId: pid, score });
+        }
+      });
+    });
+    return records;
+  }, [logs]);
+
+  const sortedScoreRecords = useMemo(
+    () => [...scoreRecords].sort((a, b) => (scoreSort === "desc" ? b.score - a.score : a.score - b.score)),
+    [scoreRecords, scoreSort]
+  );
 
   const breakdown = useMemo(() => {
     const map = {};
@@ -809,6 +893,111 @@ function TotalsTab({ logs, players, games, playerById }) {
       </div>
 
       <div className="gnt-card">
+        <div className="gnt-card-title">Player Scores</div>
+        {players.length === 0 ? (
+          <div className="gnt-empty">Add players to see score totals.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="gnt-table">
+              <thead>
+                <tr><th>Player</th><th>Total score</th><th>Scored entries</th><th>Average</th></tr>
+              </thead>
+              <tbody>
+                {[...players]
+                  .sort((a, b) => scoreStats.perPlayer[b.id].total - scoreStats.perPlayer[a.id].total)
+                  .map((p) => {
+                    const s = scoreStats.perPlayer[p.id];
+                    return (
+                      <tr key={p.id}>
+                        <td><PlayerChip player={p} /></td>
+                        <td className="gnt-num">{s.count > 0 ? s.total : "\u2014"}</td>
+                        <td className="gnt-num gnt-dim">{s.count}</td>
+                        <td className="gnt-num gnt-dim">{s.count > 0 ? (s.total / s.count).toFixed(1) : "\u2014"}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Only entries logged with a numeric score are counted here.</div>
+      </div>
+
+      <div className="gnt-card">
+        <div className="gnt-card-title">Score by Game</div>
+        {games.length === 0 || players.length === 0 ? (
+          <div className="gnt-empty">Add games and players to see this breakdown.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="gnt-table">
+              <thead>
+                <tr>
+                  <th>Game</th>
+                  {players.map((p) => <th key={p.id}>{p.name}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {games.map((g) => (
+                  <tr key={g.id}>
+                    <td>{g.name}</td>
+                    {players.map((p) => {
+                      const cell = scoreStats.perGamePlayer[g.id][p.id];
+                      return (
+                        <td key={p.id} className="gnt-num">
+                          {cell.count > 0 ? (
+                            <>
+                              {cell.total}
+                              <span className="gnt-dim" style={{ fontWeight: 400, fontSize: 11 }}> ({cell.count})</span>
+                            </>
+                          ) : "\u2014"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Totals combine every scored entry for that player in that game; the number in parentheses is how many entries had a score.</div>
+      </div>
+
+      <div className="gnt-card">
+        <div className="gnt-card-title">Score Leaderboard</div>
+        <div style={{ marginBottom: 16 }}>
+          <div className="gnt-seg">
+            <button className={scoreSort === "desc" ? "active" : ""} onClick={() => setScoreSort("desc")}>Highest first</button>
+            <button className={scoreSort === "asc" ? "active" : ""} onClick={() => setScoreSort("asc")}>Lowest first</button>
+          </div>
+        </div>
+        {scoreRecords.length === 0 ? (
+          <div className="gnt-empty">Log a game with a score to see the leaderboard.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="gnt-table">
+              <thead>
+                <tr><th>#</th><th>Player</th><th>Game</th><th>Date</th><th>Score</th></tr>
+              </thead>
+              <tbody>
+                {sortedScoreRecords.slice(0, 15).map((r, i) => (
+                  <tr key={r.id}>
+                    <td className="gnt-num gnt-dim">{i + 1}</td>
+                    <td><PlayerChip player={playerById[r.playerId]} /></td>
+                    <td>{gameById[r.gameId]?.name || <span className="gnt-dim">Deleted game</span>}</td>
+                    <td className="gnt-mono">{formatDateHuman(r.date)}</td>
+                    <td className="gnt-num" style={{ fontWeight: 700 }}>{r.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {scoreRecords.length > 15 && (
+          <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Showing top 15 of {scoreRecords.length} scored entries.</div>
+        )}
+      </div>
+
+      <div className="gnt-card">
         <div className="gnt-card-title">Win Rate by Game</div>
         {games.length === 0 || players.length === 0 ? (
           <div className="gnt-empty">Add games and players to see win rates.</div>
@@ -886,11 +1075,62 @@ function TotalsTab({ logs, players, games, playerById }) {
 
 /* ---------- Library tab ---------- */
 
+/* ---------- Rules modal ---------- */
+
+function RulesModal({ game, onClose, onSave }) {
+  const [editing, setEditing] = useState(!game.rules);
+  const [draft, setDraft] = useState(game.rules || "");
+
+  async function handleSave() {
+    await onSave(game.id, draft);
+    setEditing(false);
+  }
+
+  return (
+    <div className="gnt-modal-backdrop" onClick={onClose}>
+      <div className="gnt-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gnt-modal-header">
+          <div className="gnt-card-title" style={{ margin: 0 }}>{game.name} \u2014 Rules</div>
+          <button className="gnt-btn gnt-btn-sm" onClick={onClose}>Close</button>
+        </div>
+        {editing ? (
+          <>
+            <textarea
+              className="gnt-textarea"
+              style={{ minHeight: 220 }}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="House rules, setup notes, scoring reminders\u2026"
+              autoFocus
+            />
+            <div className="gnt-row-actions" style={{ marginTop: 12 }}>
+              <button className="gnt-btn gnt-btn-primary" onClick={handleSave}>Save rules</button>
+              <button className="gnt-btn" onClick={() => { setDraft(game.rules || ""); setEditing(false); }}>Cancel</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="gnt-rules-text">{game.rules}</div>
+            <div className="gnt-row-actions" style={{ marginTop: 12 }}>
+              <button className="gnt-btn" onClick={() => setEditing(true)}>Edit rules</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Library tab ---------- */
+
 function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
+  const [rulesGameId, setRulesGameId] = useState(null);
+
+  const rulesGame = games.find((g) => g.id === rulesGameId) || null;
 
   async function handleAdd(e) {
     e.preventDefault();
@@ -911,9 +1151,13 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
   }
 
   async function handleSaveEdit(id) {
-    const msg = await updateGame(id, editName);
+    const msg = await updateGame(id, { name: editName });
     if (msg) setError(msg);
     else setEditingId(null);
+  }
+
+  async function handleSaveRules(id, rulesText) {
+    await updateGame(id, { rules: rulesText });
   }
 
   return (
@@ -944,6 +1188,13 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
                   <span className="gnt-dim" style={{ fontSize: 12.5 }}>({playCount(g.id)} time{playCount(g.id) === 1 ? "" : "s"} played)</span>
                 </div>
                 <div className="gnt-row-actions">
+                  <button
+                    className={`gnt-btn gnt-btn-sm${g.rules ? " gnt-btn-has-rules" : ""}`}
+                    onClick={() => setRulesGameId(g.id)}
+                    title={g.rules ? "View or edit rules" : "Add rules"}
+                  >
+                    \uD83D\uDCD6 Rules
+                  </button>
                   <button className="gnt-btn gnt-btn-sm" onClick={() => startEdit(g)}>Edit</button>
                   <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(g.id)}>Remove</button>
                 </div>
@@ -952,6 +1203,7 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
           )}
         </div>
       )}
+      {rulesGame && <RulesModal game={rulesGame} onClose={() => setRulesGameId(null)} onSave={handleSaveRules} />}
     </div>
   );
 }
