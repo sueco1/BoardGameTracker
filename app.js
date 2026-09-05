@@ -1129,8 +1129,16 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [rulesGameId, setRulesGameId] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
 
   const rulesGame = games.find((g) => g.id === rulesGameId) || null;
+
+  const sortedGames = useMemo(() => {
+    return [...games].sort((a, b) => {
+      const cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [games, sortDir]);
 
   async function handleAdd(e) {
     e.preventDefault();
@@ -1162,17 +1170,23 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
 
   return (
     <div className="gnt-card">
-      <div className="gnt-card-title">Game Library</div>
-      <form onSubmit={handleAdd} className="gnt-row-actions" style={{ marginBottom: 16, alignItems: "flex-start" }}>
+      <div className="gnt-card-title">Game Library ({games.length})</div>
+      <form onSubmit={handleAdd} className="gnt-row-actions" style={{ marginBottom: 14, alignItems: "flex-start" }}>
         <input className="gnt-input" placeholder="Add a game, e.g. Catan" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} />
         <button type="submit" className="gnt-btn gnt-btn-primary">Add</button>
       </form>
       {error && <div className="gnt-error" style={{ marginBottom: 12 }}>{error}</div>}
+      {games.length > 0 && (
+        <div className="gnt-seg" style={{ marginBottom: 14 }}>
+          <button className={sortDir === "asc" ? "active" : ""} onClick={() => setSortDir("asc")}>A → Z</button>
+          <button className={sortDir === "desc" ? "active" : ""} onClick={() => setSortDir("desc")}>Z → A</button>
+        </div>
+      )}
       {games.length === 0 ? (
         <div className="gnt-empty">No games yet. Add your first one above.</div>
       ) : (
-        <div>
-          {games.map((g) =>
+        <div className="gnt-scroll-list">
+          {sortedGames.map((g) =>
             editingId === g.id ? (
               <div key={g.id} className="gnt-list-item">
                 <div className="gnt-row-actions" style={{ flex: 1, alignItems: "center" }}>
