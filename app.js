@@ -223,7 +223,7 @@ function GameNightTracker() {
     const trimmed = name.trim();
     if (!trimmed) return "Enter a game name.";
     if (games.some((g) => g.name.toLowerCase() === trimmed.toLowerCase())) return "That game is already in the library.";
-    const next = [...games, { id: uid(), name: trimmed, rules: "" }];
+    const next = [...games, { id: uid(), name: trimmed, rules: "", printed: false }];
     setGames(next);
     await saveKey("games", next);
     return "";
@@ -248,6 +248,7 @@ function GameNightTracker() {
       const merged = { ...g };
       if (updates.name !== undefined) merged.name = updates.name.trim();
       if (updates.rules !== undefined) merged.rules = updates.rules;
+      if (updates.printed !== undefined) merged.printed = updates.printed;
       return merged;
     });
     setGames(next);
@@ -1197,9 +1198,18 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
               </div>
             ) : (
               <div key={g.id} className="gnt-list-item">
-                <div>
-                  <span style={{ fontWeight: 700 }}>{g.name}</span>{" "}
-                  <span className="gnt-dim" style={{ fontSize: 12.5 }}>({playCount(g.id)} time{playCount(g.id) === 1 ? "" : "s"} played)</span>
+                <div className="gnt-row-actions" style={{ alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    className="gnt-checkbox"
+                    checked={!!g.printed}
+                    onChange={(e) => updateGame(g.id, { printed: e.target.checked })}
+                    title="I've printed upgrades for this game"
+                  />
+                  <div>
+                    <span style={{ fontWeight: 700 }}>{g.name}</span>{" "}
+                    <span className="gnt-dim" style={{ fontSize: 12.5 }}>({playCount(g.id)} time{playCount(g.id) === 1 ? "" : "s"} played)</span>
+                  </div>
                 </div>
                 <div className="gnt-row-actions">
                   <button

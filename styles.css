@@ -174,3 +174,5 @@ body.dark { background: #0F1C17; }
 }
 .gnt-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .gnt-rules-text { white-space: pre-wrap; font-size: 14px; line-height: 1.55; color: var(--ink); }
+
+.gnt-checkbox { width: 17px; height: 17px; cursor: pointer; accent-color: var(--gold); flex-shrink: 0; }
