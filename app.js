@@ -47,7 +47,7 @@ function periodInfo(dateStr, granularity) {
   }
   const biweek = Math.ceil(week / 2);
   const startWeek = biweek * 2 - 1;
-  return { key: `${isoYear}-B${String(biweek).padStart(2, "0")}`, label: `Weeks ${startWeek}\u2013${startWeek + 1}, ${isoYear}` };
+  return { key: `${isoYear}-B${String(biweek).padStart(2, "0")}`, label: `Weeks ${startWeek}–${startWeek + 1}, ${isoYear}` };
 }
 
 const PALETTE = ["#C1533D", "#2F6F5E", "#2E6E9E", "#B8860B", "#7B4FA3", "#C4638A", "#4A8B7C", "#A3703D"];
@@ -71,7 +71,7 @@ function Avatar({ name, color, size = 28 }) {
 }
 
 function PlayerChip({ player, score }) {
-  if (!player) return <span>\u2014</span>;
+  if (!player) return <span>—</span>;
   return (
     <span className="gnt-chip">
       <Avatar name={player.name} color={player.color} size={20} />
@@ -230,7 +230,7 @@ function GameNightTracker() {
   }
 
   async function deleteGame(id) {
-    if (playCount(id) > 0) return "Can't remove \u2014 this game has logged entries.";
+    if (playCount(id) > 0) return "Can't remove — this game has logged entries.";
     const next = games.filter((g) => g.id !== id);
     setGames(next);
     await saveKey("games", next);
@@ -276,7 +276,7 @@ function GameNightTracker() {
   }
 
   async function deletePlayer(id) {
-    if (playerAppearances(id) > 0) return "Can't remove \u2014 this player has logged entries.";
+    if (playerAppearances(id) > 0) return "Can't remove — this player has logged entries.";
     const next = players.filter((p) => p.id !== id);
     setPlayers(next);
     await saveKey("players", next);
@@ -304,7 +304,7 @@ function GameNightTracker() {
   if (loading) {
     return (
       <div className="gnt-app" data-theme={theme} style={{ padding: 40, textAlign: "center" }}>
-        <div className="gnt-dim">Loading your scoreboard\u2026</div>
+        <div className="gnt-dim">Loading your scoreboard…</div>
       </div>
     );
   }
@@ -327,7 +327,7 @@ function GameNightTracker() {
           </div>
           <div className="gnt-databar">
             <button className="gnt-btn gnt-btn-sm gnt-btn-ghost" onClick={toggleTheme} title="Switch between light and dark mode">
-              {theme === "dark" ? "\u2600\uFE0F Light" : "\uD83C\uDF19 Dark"}
+              {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
             </button>
             <button className="gnt-btn gnt-btn-sm gnt-btn-ghost" onClick={exportData} title="Download a backup file of all your data">
               Export backup
@@ -440,7 +440,7 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
               <div>
                 <label className="gnt-label">Game</label>
                 <select className="gnt-select" value={form.gameId} onChange={(e) => update("gameId", e.target.value)}>
-                  <option value="">Select a game\u2026</option>
+                  <option value="">Select a game…</option>
                   {games.map((g) => (
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
@@ -452,7 +452,7 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
                 <div key={slot}>
                   <label className="gnt-label">{PLACE_LABELS[slot]} place</label>
                   <select className="gnt-select" value={form[slot]} onChange={(e) => update(slot, e.target.value)}>
-                    <option value="">Select\u2026</option>
+                    <option value="">Select…</option>
                     {optsFor(slot).map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
@@ -470,7 +470,7 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
             </div>
             <div style={{ marginBottom: 14 }}>
               <label className="gnt-label">Notes (optional)</label>
-              <textarea className="gnt-textarea" value={form.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Anything worth remembering about this game\u2026" />
+              <textarea className="gnt-textarea" value={form.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Anything worth remembering about this game…" />
             </div>
             {error && <div className="gnt-error">{error}</div>}
             <div className="gnt-row-actions" style={{ marginTop: 10 }}>
@@ -506,10 +506,10 @@ function LogTab({ games, players, logs, gameById, playerById, saveLog, deleteLog
                   <tr key={l.id}>
                     <td className="gnt-mono">{formatDateHuman(l.date)}</td>
                     <td>{gameById[l.gameId]?.name || <span className="gnt-dim">Deleted game</span>}</td>
-                    <td>{playerById[l.first] ? <PlayerChip player={playerById[l.first]} score={l.firstScore} /> : "\u2014"}</td>
-                    <td>{playerById[l.second] ? <PlayerChip player={playerById[l.second]} score={l.secondScore} /> : "\u2014"}</td>
-                    <td>{playerById[l.third] ? <PlayerChip player={playerById[l.third]} score={l.thirdScore} /> : "\u2014"}</td>
-                    <td className="gnt-dim">{l.notes || "\u2014"}</td>
+                    <td>{playerById[l.first] ? <PlayerChip player={playerById[l.first]} score={l.firstScore} /> : "—"}</td>
+                    <td>{playerById[l.second] ? <PlayerChip player={playerById[l.second]} score={l.secondScore} /> : "—"}</td>
+                    <td>{playerById[l.third] ? <PlayerChip player={playerById[l.third]} score={l.thirdScore} /> : "—"}</td>
+                    <td className="gnt-dim">{l.notes || "—"}</td>
                     <td>
                       <div className="gnt-row-actions">
                         <button className="gnt-btn gnt-btn-sm" onClick={() => startEdit(l)}>Edit</button>
@@ -881,7 +881,7 @@ function TotalsTab({ logs, players, games, playerById, gameById }) {
                   .map((p) => (
                     <tr key={p.id}>
                       <td><PlayerChip player={p} /></td>
-                      <td className="gnt-num">{streaks[p.id].current > 0 ? `\uD83D\uDD25 ${streaks[p.id].current}` : "\u2014"}</td>
+                      <td className="gnt-num">{streaks[p.id].current > 0 ? `🔥 ${streaks[p.id].current}` : "—"}</td>
                       <td className="gnt-num gnt-dim">{streaks[p.id].best}</td>
                     </tr>
                   ))}
@@ -910,9 +910,9 @@ function TotalsTab({ logs, players, games, playerById, gameById }) {
                     return (
                       <tr key={p.id}>
                         <td><PlayerChip player={p} /></td>
-                        <td className="gnt-num">{s.count > 0 ? s.total : "\u2014"}</td>
+                        <td className="gnt-num">{s.count > 0 ? s.total : "—"}</td>
                         <td className="gnt-num gnt-dim">{s.count}</td>
-                        <td className="gnt-num gnt-dim">{s.count > 0 ? (s.total / s.count).toFixed(1) : "\u2014"}</td>
+                        <td className="gnt-num gnt-dim">{s.count > 0 ? (s.total / s.count).toFixed(1) : "—"}</td>
                       </tr>
                     );
                   })}
@@ -949,7 +949,7 @@ function TotalsTab({ logs, players, games, playerById, gameById }) {
                               {cell.total}
                               <span className="gnt-dim" style={{ fontWeight: 400, fontSize: 11 }}> ({cell.count})</span>
                             </>
-                          ) : "\u2014"}
+                          ) : "—"}
                         </td>
                       );
                     })}
@@ -1022,7 +1022,7 @@ function TotalsTab({ logs, players, games, playerById, gameById }) {
                             <>
                               {cell.rate}%<span className="gnt-dim" style={{ fontWeight: 400, fontSize: 11 }}> ({cell.wins}/{cell.played})</span>
                             </>
-                          ) : "\u2014"}
+                          ) : "—"}
                         </td>
                       );
                     })}
@@ -1032,7 +1032,7 @@ function TotalsTab({ logs, players, games, playerById, gameById }) {
             </table>
           </div>
         )}
-        <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Win rate = 1st-place finishes \u00f7 times that player has played the game.</div>
+        <div className="gnt-dim" style={{ fontSize: 12.5, marginTop: 10 }}>Win rate = 1st-place finishes ÷ times that player has played the game.</div>
       </div>
 
       <div className="gnt-card">
@@ -1060,7 +1060,7 @@ function TotalsTab({ logs, players, games, playerById, gameById }) {
                   <tr key={g.id}>
                     <td>{g.name}</td>
                     {players.map((p) => (
-                      <td key={p.id} className="gnt-num">{breakdown[g.id][p.id] || "\u2014"}</td>
+                      <td key={p.id} className="gnt-num">{breakdown[g.id][p.id] || "—"}</td>
                     ))}
                   </tr>
                 ))}
@@ -1090,7 +1090,7 @@ function RulesModal({ game, onClose, onSave }) {
     <div className="gnt-modal-backdrop" onClick={onClose}>
       <div className="gnt-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gnt-modal-header">
-          <div className="gnt-card-title" style={{ margin: 0 }}>{game.name} \u2014 Rules</div>
+          <div className="gnt-card-title" style={{ margin: 0 }}>{game.name} — Rules</div>
           <button className="gnt-btn gnt-btn-sm" onClick={onClose}>Close</button>
         </div>
         {editing ? (
@@ -1100,7 +1100,7 @@ function RulesModal({ game, onClose, onSave }) {
               style={{ minHeight: 220 }}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="House rules, setup notes, scoring reminders\u2026"
+              placeholder="House rules, setup notes, scoring reminders…"
               autoFocus
             />
             <div className="gnt-row-actions" style={{ marginTop: 12 }}>
@@ -1193,7 +1193,7 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
                     onClick={() => setRulesGameId(g.id)}
                     title={g.rules ? "View or edit rules" : "Add rules"}
                   >
-                    \uD83D\uDCD6 Rules
+                    📖 Rules
                   </button>
                   <button className="gnt-btn gnt-btn-sm" onClick={() => startEdit(g)}>Edit</button>
                   <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(g.id)}>Remove</button>
