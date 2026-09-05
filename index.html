@@ -5,8 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Game Night Tracker</title>
   
+  <!--
+    CACHE-BUSTING VERSION — bump this number every time you push a change
+    to app.js or styles.css. It just needs to be different from last time;
+    that's what forces browsers to fetch the new file instead of serving
+    a cached copy of the old one. Update both places below together.
+  -->
   <!-- Load external CSS -->
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=1" />
   
   <!-- Load React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -18,7 +24,7 @@
 <body>
   <div id="root"></div>
 
-  <!-- Load your React App -->
-  <script type="text/babel" src="app.js"></script>
+  <!-- Load your React App (bump ?v= here too, see comment above) -->
+  <script type="text/babel" src="app.js?v=1"></script>
 </body>
 </html>
