@@ -1193,7 +1193,7 @@ function LibraryTab({ games, playCount, addGame, updateGame, deleteGame }) {
                     onClick={() => setRulesGameId(g.id)}
                     title={g.rules ? "View or edit rules" : "Add rules"}
                   >
-                    Game Rules
+                    \uD83D\uDCD6 Rules
                   </button>
                   <button className="gnt-btn gnt-btn-sm" onClick={() => startEdit(g)}>Edit</button>
                   <button className="gnt-btn gnt-btn-sm gnt-btn-danger" onClick={() => handleDelete(g.id)}>Remove</button>
