@@ -160,7 +160,7 @@ body.dark { background: #0F1C17; }
 .gnt-row-actions { display: flex; gap: 6px; }
 .gnt-list-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 2px; border-bottom: 1px solid var(--line); }
 .gnt-list-item:last-child { border-bottom: none; }
-.gnt-scroll-list { max-height: 520px; overflow-y: auto; padding-right: 6px; }
+.gnt-scroll-list { max-height: 580px; overflow-y: auto; padding-right: 6px; }
 .gnt-btn-has-rules { border-color: var(--felt); color: var(--felt); font-weight: 700; }
 .gnt-app[data-theme="dark"] .gnt-btn-has-rules { border-color: var(--accent); color: var(--accent); }
 
